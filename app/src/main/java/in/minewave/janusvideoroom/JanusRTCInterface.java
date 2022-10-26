@@ -12,4 +12,5 @@ public interface JanusRTCInterface {
     void subscriberHandleRemoteJsep(BigInteger handleId, JSONObject jsep);
     void onLeaving(BigInteger handleId);
 
+    void onClosing();
 }

@@ -38,6 +38,7 @@ import okio.ByteString;
 public class WebSocketChannel {
     private static final String TAG = "WebSocketChannel";
 
+    private OkHttpClient httpClient;
     private WebSocket mWebSocket;
     private ConcurrentHashMap<String, JanusTransaction> transactions = new ConcurrentHashMap<>();
     private ConcurrentHashMap<BigInteger, JanusHandle> handles = new ConcurrentHashMap<>();
@@ -46,11 +47,16 @@ public class WebSocketChannel {
     private BigInteger mSessionId;
     private JanusRTCInterface delegate;
 
+    private Integer roomId;
+
     public WebSocketChannel() {
         mHandler = new Handler();
     }
 
-    public void initConnection(String url) {
+    public void initConnection(String url, Integer roomId) {
+
+        this.roomId = roomId;
+
         try{
             final TrustManager[] trustAllCerts = new TrustManager[] {
                     new X509TrustManager() {
@@ -75,7 +81,7 @@ public class WebSocketChannel {
             final SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
 
 
-            OkHttpClient httpClient = new OkHttpClient.Builder()
+            httpClient = new OkHttpClient.Builder()
                     .addNetworkInterceptor(new HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
                     .addInterceptor(new Interceptor() {
                         @Override
@@ -155,6 +161,8 @@ public class WebSocketChannel {
                 transactions.remove(transaction);
             } else if (janus.equals("ack")) {
                 Log.e(TAG, "Just an ack");
+            } else if(janus.equals("hangup")) {
+                delegate.onClosing();
             } else {
                 JanusHandle handle = handles.get(new BigInteger(jo.optString("sender")));
                 if (handle == null) {
@@ -213,7 +221,6 @@ public class WebSocketChannel {
             public void success(JSONObject jo) {
                 mSessionId = new BigInteger(jo.optJSONObject("data").optString("id"));
                 mHandler.post(fireKeepAlive);
-                //ccreateRoom();
                 publisherCreateHandle();
             }
         };
@@ -237,50 +244,82 @@ public class WebSocketChannel {
         mWebSocket.send(msg.toString());
     }
 
-//    private void createRoom() {
-//        String transaction = randomString(12);
-//        JanusTransaction jt = new JanusTransaction();
-//        jt.tid = transaction;
-//        jt.success = new TransactionCallbackSuccess() {
-//            @Override
-//            public void success(JSONObject jo) {
-//                publisherCreateHandle();
-//            }
-//        };
-//        jt.error = new TransactionCallbackError() {
-//            @Override
-//            public void error(JSONObject jo) {
-//            }
-//        };
-//        transactions.put(transaction, jt);
-//
-//        JSONObject msg = new JSONObject();
-//        JSONObject body = new JSONObject();
-//        try {
-//            body.putOpt("request", "create");
-//            body.putOpt("room", 12345);
-//
-//            msg.putOpt("janus", "create");
-//            msg.putOpt("body", body);
-//            msg.putOpt("transaction", transaction);
-//        } catch (JSONException e) {
-//            e.printStackTrace();
-//        }
-//
-//        Log.e(TAG, "createRoom websocket send "+ msg.toString());
-//        mWebSocket.send(msg.toString());
-//    }
-
-    private void publisherCreateHandle() {
-        Log.e(TAG,"publisherCreateHandle");
+    private void isExistRoom(JanusHandle handle) {
         String transaction = randomString(12);
         JanusTransaction jt = new JanusTransaction();
         jt.tid = transaction;
         jt.success = new TransactionCallbackSuccess() {
             @Override
             public void success(JSONObject jo) {
+                Log.e(TAG, "success isExistRoom");
+
+                JSONObject plugin = jo.optJSONObject("plugindata").optJSONObject("data");
+                boolean isExist = plugin.optBoolean("exists");
+
+                if(isExist) {
+
+                    JanusHandle janusHandle = new JanusHandle();
+                    janusHandle.handleId = handle.handleId;
+                    janusHandle.onJoined = new OnJoined() {
+                        @Override
+                        public void onJoined(JanusHandle jh) {
+                            Log.e(TAG,"onPublisherJoined");
+                            delegate.onPublisherJoined(jh.handleId);
+                        }
+                    };
+                    janusHandle.onRemoteJsep = new OnRemoteJsep() {
+                        @Override
+                        public void onRemoteJsep(JanusHandle jh,  JSONObject jsep) {
+                            delegate.onPublisherRemoteJsep(jh.handleId, jsep);
+                        }
+                    };
+                    handles.put(janusHandle.handleId, janusHandle);
+                    publisherJoinRoom(janusHandle);
+
+                }else {
+                    JanusHandle janusHandle = new JanusHandle();
+                    janusHandle.handleId = handle.handleId;
+                    handles.put(janusHandle.handleId, janusHandle);
+                    createRoom(janusHandle);
+                }
+            }
+        };
+        jt.error = new TransactionCallbackError() {
+            @Override
+            public void error(JSONObject jo) {
+            }
+        };
+        transactions.put(transaction, jt);
+
+        JSONObject msg = new JSONObject();
+        JSONObject body = new JSONObject();
+        try {
+            body.putOpt("request", "exists");
+            body.putOpt("room", roomId);
+
+            msg.putOpt("janus", "message");
+            msg.putOpt("body", body);
+            msg.putOpt("transaction", transaction);
+            msg.putOpt("session_id", mSessionId);
+            msg.putOpt("handle_id", handle.handleId);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        Log.e(TAG, "createRoom websocket send "+ msg.toString());
+        mWebSocket.send(msg.toString());
+    }
+
+    private void createRoom(JanusHandle handle) {
+        String transaction = randomString(12);
+        JanusTransaction jt = new JanusTransaction();
+        jt.tid = transaction;
+        jt.success = new TransactionCallbackSuccess() {
+            @Override
+            public void success(JSONObject jo) {
+
                 JanusHandle janusHandle = new JanusHandle();
-                janusHandle.handleId = new BigInteger(jo.optJSONObject("data").optString("id"));
+                janusHandle.handleId = handle.handleId;
                 janusHandle.onJoined = new OnJoined() {
                     @Override
                     public void onJoined(JanusHandle jh) {
@@ -296,6 +335,65 @@ public class WebSocketChannel {
                 };
                 handles.put(janusHandle.handleId, janusHandle);
                 publisherJoinRoom(janusHandle);
+            }
+        };
+        jt.error = new TransactionCallbackError() {
+            @Override
+            public void error(JSONObject jo) {
+            }
+        };
+        transactions.put(transaction, jt);
+
+        JSONObject msg = new JSONObject();
+        JSONObject body = new JSONObject();
+        try {
+            body.putOpt("request", "create");
+            body.putOpt("room", roomId);
+            body.putOpt("notify_joining", true);
+            body.putOpt("secret", "1234");
+
+            msg.putOpt("janus", "message");
+            msg.putOpt("body", body);
+            msg.putOpt("transaction", transaction);
+            msg.putOpt("session_id", mSessionId);
+            msg.putOpt("handle_id", handle.handleId);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        Log.e(TAG, "createRoom websocket send "+ msg.toString());
+        mWebSocket.send(msg.toString());
+    }
+
+
+    private void publisherCreateHandle() {
+        Log.e(TAG,"publisherCreateHandle");
+        String transaction = randomString(12);
+        JanusTransaction jt = new JanusTransaction();
+        jt.tid = transaction;
+        jt.success = new TransactionCallbackSuccess() {
+            @Override
+            public void success(JSONObject jo) {
+                JanusHandle janusHandle = new JanusHandle();
+                janusHandle.handleId = new BigInteger(jo.optJSONObject("data").optString("id"));
+//                janusHandle.onJoined = new OnJoined() {
+//                    @Override
+//                    public void onJoined(JanusHandle jh) {
+//                        Log.e(TAG,"onPublisherJoined");
+//                        delegate.onPublisherJoined(jh.handleId);
+//                    }
+//                };
+//                janusHandle.onRemoteJsep = new OnRemoteJsep() {
+//                    @Override
+//                    public void onRemoteJsep(JanusHandle jh,  JSONObject jsep) {
+//                        delegate.onPublisherRemoteJsep(jh.handleId, jsep);
+//                    }
+//                };
+//                handles.put(janusHandle.handleId, janusHandle);
+//                publisherJoinRoom(janusHandle);
+
+                handles.put(janusHandle.handleId, janusHandle);
+                isExistRoom(janusHandle);
             }
         };
         jt.error = new TransactionCallbackError() {
@@ -322,7 +420,7 @@ public class WebSocketChannel {
         JSONObject body = new JSONObject();
         try {
             body.putOpt("request", "join");
-            body.putOpt("room", MainActivity.ROOMID);
+            body.putOpt("room", roomId);
             body.putOpt("ptype", "publisher");
             body.putOpt("display", "android");
 
@@ -370,7 +468,7 @@ public class WebSocketChannel {
 
         try {
             body.putOpt("request", "start");
-            body.putOpt("room", MainActivity.ROOMID);
+            body.putOpt("room", roomId);
 
             jsep.putOpt("type", sdp.type);
             jsep.putOpt("sdp", sdp.description);
@@ -480,7 +578,7 @@ public class WebSocketChannel {
         JSONObject body = new JSONObject();
         try {
             body.putOpt("request", "join");
-            body.putOpt("room", MainActivity.ROOMID);
+            body.putOpt("room", roomId);
             body.putOpt("ptype", "subscriber");
             body.putOpt("feed", handle.feedId);
 
@@ -547,7 +645,7 @@ public class WebSocketChannel {
         @Override
         public void run() {
             keepAlive();
-            mHandler.postDelayed(fireKeepAlive, 30000);
+            //mHandler.postDelayed(fireKeepAlive, 30000);
         }
     };
 
@@ -564,4 +662,10 @@ public class WebSocketChannel {
         }
         return sb.toString();
     }
+
+    public void close() {
+        mWebSocket.cancel();
+        httpClient.dispatcher().executorService().shutdown();
+    }
+    
 }

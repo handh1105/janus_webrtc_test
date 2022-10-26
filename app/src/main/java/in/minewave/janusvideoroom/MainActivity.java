@@ -1,10 +1,11 @@
 package in.minewave.janusvideoroom;
 
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
 import android.widget.LinearLayout;
 
+import androidx.appcompat.app.AppCompatActivity;
 import org.json.JSONObject;
 import org.webrtc.Camera1Enumerator;
 import org.webrtc.Camera2Enumerator;
@@ -18,12 +19,14 @@ import org.webrtc.VideoCapturer;
 import org.webrtc.VideoRenderer;
 
 import java.math.BigInteger;
+import java.util.Objects;
+
 import in.minewave.janusvideoroom.PeerConnectionClient.PeerConnectionParameters;
 import in.minewave.janusvideoroom.PeerConnectionClient.PeerConnectionEvents;
 
 public class MainActivity extends AppCompatActivity implements JanusRTCInterface, PeerConnectionEvents {
     private static final String TAG = "MainActivity";
-    public static final Integer ROOMID = 7777;
+    //public static final Integer ROOMID = 7777;
 
     private PeerConnectionClient peerConnectionClient;
     private PeerConnectionParameters peerConnectionParameters;
@@ -40,8 +43,15 @@ public class MainActivity extends AppCompatActivity implements JanusRTCInterface
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         rootView = (LinearLayout) findViewById(R.id.activity_main);
+
+        String roomId = getIntent().getStringExtra("roomId");
+
+        if(roomId==null) {
+            finish();
+        }
+
         mWebSocketChannel = new WebSocketChannel();
-        mWebSocketChannel.initConnection("wss://poc-media1.saramin.co.kr:8189/janus");
+        mWebSocketChannel.initConnection("wss://poc-media1.saramin.co.kr:8189/janus", Integer.parseInt(roomId));
         //mWebSocketChannel.initConnection("wss://janus.conf.meetecho.com/ws");
         //mWebSocketChannel.initConnection("wss://poc-media1.saramin.co.kr:8189");
 
@@ -159,7 +169,6 @@ public class MainActivity extends AppCompatActivity implements JanusRTCInterface
 
     @Override
     public void onLeaving(BigInteger handleId) {
-
     }
 
     // interface PeerConnectionClient.PeerConnectionEvents
@@ -227,5 +236,52 @@ public class MainActivity extends AppCompatActivity implements JanusRTCInterface
                 connection.videoTrack.addRenderer(new VideoRenderer(remoteRender));
             }
         });
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        peerConnectionClient.stopVideoSource();
+    }
+
+    @Override
+    public void onClosing() {
+        Log.e(TAG,"onClosing");
+//        peerConnectionClient.close();
+//        remoteRender.release();
+    }
+
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+    }
+
+    @Override
+    protected void onDestroy() {
+        disconnect();
+        super.onDestroy();
+    }
+
+    private void disconnect() {
+
+        if(mWebSocketChannel!=null) {
+            mWebSocketChannel.close();
+            mWebSocketChannel = null;
+        }
+
+        if(localRender!=null) {
+            localRender.release();
+            localRender = null;
+        }
+
+        if(remoteRender!=null) {
+            remoteRender.release();
+            remoteRender = null;
+        }
+
+        if(peerConnectionClient != null) {
+            peerConnectionClient.close();
+            peerConnectionClient = null;
+        }
     }
 }

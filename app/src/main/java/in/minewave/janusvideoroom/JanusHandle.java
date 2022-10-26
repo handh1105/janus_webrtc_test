@@ -12,6 +12,10 @@ interface OnRemoteJsep {
     void onRemoteJsep(JanusHandle jh, JSONObject jsep);
 }
 
+interface OnIsExist {
+    void onIsExist(JanusHandle jh);
+}
+
 public class JanusHandle {
 
     public BigInteger handleId;
@@ -21,4 +25,6 @@ public class JanusHandle {
     public OnJoined onJoined;
     public OnRemoteJsep onRemoteJsep;
     public OnJoined onLeaving;
+
+    public OnIsExist onIsExist;
 }

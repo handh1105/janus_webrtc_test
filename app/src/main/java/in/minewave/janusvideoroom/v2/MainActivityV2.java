@@ -1,4 +1,4 @@
-package in.minewave.janusvideoroom;
+package in.minewave.janusvideoroom.v2;
 
 import android.os.Bundle;
 import android.util.Log;
@@ -11,25 +11,25 @@ import org.webrtc.Camera1Enumerator;
 import org.webrtc.Camera2Enumerator;
 import org.webrtc.CameraEnumerator;
 import org.webrtc.EglBase;
-import org.webrtc.IceCandidate;
 import org.webrtc.SessionDescription;
-import org.webrtc.StatsReport;
 import org.webrtc.SurfaceViewRenderer;
 import org.webrtc.VideoCapturer;
-import org.webrtc.VideoRenderer;
 
 import java.math.BigInteger;
-import java.util.Objects;
 
-import in.minewave.janusvideoroom.PeerConnectionClient.PeerConnectionParameters;
-import in.minewave.janusvideoroom.PeerConnectionClient.PeerConnectionEvents;
+import in.minewave.janusvideoroom.JanusRTCInterface;
+import in.minewave.janusvideoroom.R;
+import in.minewave.janusvideoroom.WebSocketChannel;
 
-public class MainActivity extends AppCompatActivity implements JanusRTCInterface, PeerConnectionEvents {
+//import in.minewave.janusvideoroom.PeerConnectionClient.PeerConnectionParameters;
+//import in.minewave.janusvideoroom.PeerConnectionClient.PeerConnectionEvents;
+
+public class MainActivityV2 extends AppCompatActivity implements JanusRTCInterface { //, PeerConnectionEvents {
     private static final String TAG = "MainActivity";
     //public static final Integer ROOMID = 7777;
 
-    private PeerConnectionClient peerConnectionClient;
-    private PeerConnectionParameters peerConnectionParameters;
+//    private PeerConnectionClient peerConnectionClient;
+//    private PeerConnectionParameters peerConnectionParameters;
 
     private SurfaceViewRenderer localRender;
     private SurfaceViewRenderer remoteRender;
@@ -61,18 +61,15 @@ public class MainActivity extends AppCompatActivity implements JanusRTCInterface
         remoteRender = (SurfaceViewRenderer) findViewById(R.id.remote_video_view);
         remoteRender.init(rootEglBase.getEglBaseContext(), null);
 
-        peerConnectionParameters  = new PeerConnectionParameters(false, 360, 480, 20, "H264", true, 0, "opus", false, false, false, false, false);
-        peerConnectionClient = new PeerConnectionClient();
-        //peerConnectionClient = PeerConnectionClient.getInstance();
-        peerConnectionClient.createPeerConnectionFactory(this, peerConnectionParameters, this);
+//        peerConnectionParameters  = new PeerConnectionParameters(false, 360, 480, 20, "H264", true, 0, "opus", false, false, false, false, false);
+//        peerConnectionClient = PeerConnectionClient.getInstance();
+//        peerConnectionClient.createPeerConnectionFactory(this, peerConnectionParameters, this);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if(peerConnectionClient!=null) {
-            peerConnectionClient.startVideoSource();
-        }
+//        peerConnectionClient.startVideoSource();
     }
 
     private void createLocalRender() {
@@ -142,8 +139,8 @@ public class MainActivity extends AppCompatActivity implements JanusRTCInterface
     private void offerPeerConnection(BigInteger handleId) {
         Log.e(TAG,"offerPeerConnection");
         videoCapturer = createVideoCapturer();
-        peerConnectionClient.createPeerConnection(rootEglBase.getEglBaseContext(), localRender, videoCapturer, handleId);
-        peerConnectionClient.createOffer(handleId);
+//        peerConnectionClient.createPeerConnection(rootEglBase.getEglBaseContext(), localRender, videoCapturer, handleId);
+//        peerConnectionClient.createOffer(handleId);
     }
 
     // interface JanusRTCInterface
@@ -159,7 +156,7 @@ public class MainActivity extends AppCompatActivity implements JanusRTCInterface
         String sdp = jsep.optString("sdp");
         SessionDescription sessionDescription = new SessionDescription(type, sdp);
 
-        peerConnectionClient.setRemoteDescription(handleId, sessionDescription);
+//        peerConnectionClient.setRemoteDescription(handleId, sessionDescription);
     }
 
     @Override
@@ -168,7 +165,7 @@ public class MainActivity extends AppCompatActivity implements JanusRTCInterface
         SessionDescription.Type type = SessionDescription.Type.fromCanonicalForm(jsep.optString("type"));
         String sdp = jsep.optString("sdp");
         SessionDescription sessionDescription = new SessionDescription(type, sdp);
-        peerConnectionClient.subscriberHandleRemoteJsep(handleId, sessionDescription);
+//        peerConnectionClient.subscriberHandleRemoteJsep(handleId, sessionDescription);
     }
 
     @Override
@@ -176,88 +173,97 @@ public class MainActivity extends AppCompatActivity implements JanusRTCInterface
     }
 
     // interface PeerConnectionClient.PeerConnectionEvents
-    @Override
-    public void onLocalDescription(SessionDescription sdp, BigInteger handleId) {
-        Log.e(TAG,"onLocalDescription :"+sdp.type.toString());
-        mWebSocketChannel.publisherCreateOffer(handleId, sdp);
-    }
-
-    @Override
-    public void onRemoteDescription(SessionDescription sdp, BigInteger handleId) {
-        Log.e(TAG, "onRemoteDescription :" +sdp.type.toString());
-        mWebSocketChannel.subscriberCreateAnswer(handleId, sdp);
-    }
-
-    @Override
-    public void onIceCandidate(IceCandidate candidate, BigInteger handleId) {
-        Log.e(TAG, "=========onIceCandidate========");
-        if (candidate != null) {
-            mWebSocketChannel.trickleCandidate(handleId, candidate);
-        } else {
-            mWebSocketChannel.trickleCandidateComplete(handleId);
-        }
-    }
-
-    @Override
-    public void onIceCandidatesRemoved(IceCandidate[] candidates) {
-
-    }
-
-    @Override
-    public void onIceConnected() {
-        Log.e(TAG,"onIceConnected");
-    }
-
-    @Override
-    public void onIceDisconnected() {
-        Log.e(TAG,"onIceDisconnected");
-    }
-
-    @Override
-    public void onPeerConnectionClosed() {
-        Log.e(TAG,"onPeerConnectionClosed");
-    }
-
-    @Override
-    public void onPeerConnectionStatsReady(StatsReport[] reports) {
-        Log.e(TAG,"onPeerConnectionStatsReady");
-    }
-
-    @Override
-    public void onPeerConnectionError(String description) {
-        Log.e(TAG,"onPeerConnectionError - " +description);
-    }
-
-    @Override
-    public void onRemoteRender(final JanusConnection connection) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-//                remoteRender = new SurfaceViewRenderer(MainActivity.this);
-//                remoteRender.init(rootEglBase.getEglBaseContext(), null);
-//                LinearLayout.LayoutParams params  = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-//                rootView.addView(remoteRender, params);
-                connection.videoTrack.addRenderer(new VideoRenderer(remoteRender));
-            }
-        });
-    }
+//    @Override
+//    public void onLocalDescription(SessionDescription sdp, BigInteger handleId) {
+//        Log.e(TAG,"onLocalDescription :"+sdp.type.toString());
+//        mWebSocketChannel.publisherCreateOffer(handleId, sdp);
+//    }
+//
+//    @Override
+//    public void onRemoteDescription(SessionDescription sdp, BigInteger handleId) {
+//        Log.e(TAG, "onRemoteDescription :" +sdp.type.toString());
+//        mWebSocketChannel.subscriberCreateAnswer(handleId, sdp);
+//    }
+//
+//    @Override
+//    public void onIceCandidate(IceCandidate candidate, BigInteger handleId) {
+//        Log.e(TAG, "=========onIceCandidate========");
+//        if (candidate != null) {
+//            mWebSocketChannel.trickleCandidate(handleId, candidate);
+//        } else {
+//            mWebSocketChannel.trickleCandidateComplete(handleId);
+//        }
+//    }
+//
+//    @Override
+//    public void onIceCandidatesRemoved(IceCandidate[] candidates) {
+//
+//    }
+//
+//    @Override
+//    public void onIceConnected() {
+//        Log.e(TAG,"onIceConnected");
+//    }
+//
+//    @Override
+//    public void onIceDisconnected() {
+//        Log.e(TAG,"onIceDisconnected");
+//    }
+//
+//    @Override
+//    public void onPeerConnectionClosed() {
+//        Log.e(TAG,"onPeerConnectionClosed");
+//    }
+//
+//    @Override
+//    public void onPeerConnectionStatsReady(StatsReport[] reports) {
+//        Log.e(TAG,"onPeerConnectionStatsReady");
+//    }
+//
+//    @Override
+//    public void onPeerConnectionError(String description) {
+//        Log.e(TAG,"onPeerConnectionError - " +description);
+//    }
+//
+//    @Override
+//    public void onRemoteRender(final JanusConnection connection) {
+//        runOnUiThread(new Runnable() {
+//            @Override
+//            public void run() {
+////                remoteRender = new SurfaceViewRenderer(MainActivity.this);
+////                remoteRender.init(rootEglBase.getEglBaseContext(), null);
+////                LinearLayout.LayoutParams params  = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+////                rootView.addView(remoteRender, params);
+//
+//
+//
+//                connection.videoTrack.addRenderer(new VideoRenderer(remoteRender));
+//            }
+//        });
+//    }
 
     @Override
     protected void onPause() {
         super.onPause();
-        if(peerConnectionClient!=null) {
-            peerConnectionClient.stopVideoSource();
-        }
+//        peerConnectionClient.stopVideoSource();
     }
 
     @Override
     public void onClosing() {
         Log.e(TAG,"onClosing");
+//        peerConnectionClient.close();
+//        remoteRender.release();
     }
 
     @Override
     public void onBackPressed() {
+        super.onBackPressed();
+    }
+
+    @Override
+    protected void onDestroy() {
         disconnect();
+        super.onDestroy();
     }
 
     private void disconnect() {
@@ -277,11 +283,9 @@ public class MainActivity extends AppCompatActivity implements JanusRTCInterface
             remoteRender = null;
         }
 
-        if(peerConnectionClient != null) {
-            peerConnectionClient.close();
-            peerConnectionClient = null;
-        }
-
-        finish();
+//        if(peerConnectionClient != null) {
+//            peerConnectionClient.close();
+//            peerConnectionClient = null;
+//        }
     }
 }

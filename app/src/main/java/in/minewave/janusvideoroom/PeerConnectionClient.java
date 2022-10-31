@@ -4,16 +4,7 @@ import android.content.Context;
 import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
-import java.io.File;
-import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+
 import org.webrtc.AudioSource;
 import org.webrtc.AudioTrack;
 import org.webrtc.CameraVideoCapturer;
@@ -39,6 +30,17 @@ import org.webrtc.VideoTrack;
 import org.webrtc.voiceengine.WebRtcAudioManager;
 import org.webrtc.voiceengine.WebRtcAudioUtils;
 
+import java.io.File;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+
 public class PeerConnectionClient {
   public static final String VIDEO_TRACK_ID = "ARDAMSv0";
   public static final String AUDIO_TRACK_ID = "ARDAMSa0";
@@ -55,7 +57,7 @@ public class PeerConnectionClient {
   private static final int HD_VIDEO_WIDTH = 1280;
   private static final int HD_VIDEO_HEIGHT = 720;
 
-  private static final PeerConnectionClient instance = new PeerConnectionClient();
+  //private static final PeerConnectionClient instance = new PeerConnectionClient();
 
   private final ScheduledExecutorService executor;
 
@@ -181,7 +183,7 @@ public class PeerConnectionClient {
     void onRemoteRender(JanusConnection connection);
   }
 
-  private PeerConnectionClient() {
+  public PeerConnectionClient() {
     // Executor thread is started once in private ctor and is used for all
     // peer connection API calls to ensure new peer connection factory is
     // created on the same thread as previously destroyed factory.
@@ -189,9 +191,9 @@ public class PeerConnectionClient {
     peerConnectionMap = new ConcurrentHashMap<>();
   }
 
-  public static PeerConnectionClient getInstance() {
-    return instance;
-  }
+//  public static PeerConnectionClient getInstance() {
+//    return instance;
+//  }
 
   public void setPeerConnectionFactoryOptions(PeerConnectionFactory.Options options) {
     this.options = options;
@@ -433,6 +435,7 @@ public class PeerConnectionClient {
       for (Map.Entry<BigInteger, JanusConnection> entry: peerConnectionMap.entrySet()) {
         if (entry.getValue().peerConnection != null) {
           entry.getValue().peerConnection.dispose();
+          entry.getValue().peerConnection = null;
         }
       }
     }
@@ -727,7 +730,7 @@ public class PeerConnectionClient {
     }
 
     @Override
-    public void onIceConnectionChange(final PeerConnection.IceConnectionState newState) {
+    public void onIceConnectionChange(final IceConnectionState newState) {
       executor.execute(new Runnable() {
         @Override
         public void run() {

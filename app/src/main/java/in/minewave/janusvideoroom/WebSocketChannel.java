@@ -645,7 +645,7 @@ public class WebSocketChannel {
         @Override
         public void run() {
             keepAlive();
-            //mHandler.postDelayed(fireKeepAlive, 30000);
+            mHandler.postDelayed(fireKeepAlive, 30000);
         }
     };
 
@@ -666,6 +666,7 @@ public class WebSocketChannel {
     public void close() {
         mWebSocket.cancel();
         httpClient.dispatcher().executorService().shutdown();
+        mHandler.removeCallbacks(fireKeepAlive);
     }
     
 }
